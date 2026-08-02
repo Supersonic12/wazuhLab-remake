@@ -73,11 +73,11 @@ I also created a dashboard for easier visualization:
 
 From this access, the attacker can perform lateral movement or exfiltrate data. For testing, I ran `whoami.exe` after gaining access to the system. We can see execution of `ipconfig` and `whoami` on the Wazuh Discover page by filtering for rule **100108**, which corresponds to PowerShell or CMD execution of another process:
 
-![Command execution alert](Images/Pasted%20image%2020260802181526.png)
+![Command execution alert](Images/Pasted%20image%2020260802191526.png)
 
 Rule **100107** is triggered when PowerShell creates a new file. Both rules are custom-made. Example:
 
-![Powershell file creation rule](Images/Pasted%20image%2020260802181636.png)
+![Powershell file creation rule](Images/Pasted%20image%2020260802191636.png)
 
 As part of the attack I first attempted to download a mimikatz.zip archive for credential dumping. Windows Defender deleted that file immediately in this environment:
 
