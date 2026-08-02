@@ -1,22 +1,38 @@
-I firstly installed Ubuntu Server ISO and then setup a virtual machine in Oracle Virtualbox. 
-Username:jesus
-Passcode:liebling
+# Wazuh Deployment on Ubuntu Server
 
-I setup the machine in unattended mode for fast result. It didn't installed any additional packages like openssh-server and net-tools which would be needed for lab. So then I installed them using CLI commands.
-`sudo apt install openssh-server net-tools -y` 
-was enough. 
-I then have created an ssh session from my main device to make the lab feel like it was based on cloud. And this way I could have easily copied my clipboard content without needing a VirtualBox Guest Additions iso additionally, which lets us share folders, clipboard and enables drag-n-drop features which is not needed right now. 
-## After creating ssh session
+1. I first installed the Ubuntu Server ISO and then set up a virtual machine in Oracle VirtualBox.
+2. Username: jesus
+3. Passcode: liebling
+
+I set up the machine in unattended mode for fast results. It didn't install additional packages like `openssh-server` and `net-tools`, which are needed for the lab, so I installed them using:
+
+```bash
+sudo apt install openssh-server net-tools -y
+```
+
+I then created an SSH session from my main device to make the lab feel like it ran in the cloud. This also made it easy to copy clipboard content without needing the VirtualBox Guest Additions.
+
+## After creating SSH session
 
 ![space](Images/Pasted image 20260801112957.png)
-Then I visited Wazuh SIEM/EDR solution's website and got one line of code that lets us install Wazuh parts(server, indexer,dashboard) to one machine. It is downloaded to machine using curl tool for the ease of use. Then I gave execution permission to the wazuh-install.sh file after checking its SHA256 key for confirming its being legit. 
-Then I executed 
-`sudo ./wazuh-install.sh -a `
-command in which -a stands for  "all in one".
 
-After waiting for 15-30 minutes installation of wazuh components finished and we got this password for accessing wazuh dashboard through browser
+Next I visited the Wazuh SIEM/EDR website and copied the one-liner installer that deploys Wazuh components (server, indexer, dashboard) on a single machine. I downloaded that script using `curl` and executed it.
+
+Then I executed:
+
+```bash
+sudo ./wazuh-install.sh -a
+```
+
+The `-a` flag stands for "all-in-one".
+
+After waiting 15–30 minutes the installation of Wazuh components finished and we received the dashboard access password shown here:
+
 ![space](Images/Pasted image 20260801115550.png)
 
-I used the ip address we have used when connecting using ssh and port number 443 to access dashboard.
+I used the same IP address I used for SSH and port `443` to access the dashboard in a browser:
+
 ![space](Images/Pasted image 20260801115809.png)
-After writing down credentials in dashboard login interface I got access to default dashboard.
+
+After entering the credentials on the dashboard login page I gained access to the default dashboard.
+

@@ -1,63 +1,105 @@
-Why: this agent is going to be main log source for our indexer in wazuh. 
+# Setup Windows agent for Wazuh
 
-I clicked "Deploy new agent" option in Wazuh Dashboard and there selected agent machine as Windows and server IP address as 192.168.100.88 which is IP adress of machine Wazuh server is deployed on. Additionally I set agent name "Windows" to new agent. Wazuh automatically created a powershell command for me to copy and paste to powershell on my Windows machine. Command is like this:
-`Invoke-WebRequest -Uri https://packages.wazuh.com/4.x/windows/wazuh-agent-4.14.7-1.msi -OutFile $env:tmp\wazuh-agent; msiexec.exe /i $env:tmp\wazuh-agent /q WAZUH_MANAGER='192.168.100.88' WAZUH_AGENT_NAME='Windows'`
-Which basically installs an exe and sets up our agent.
+Why: this agent is going to be the main log source for our indexer in Wazuh.
 
-Then after installation finished I wrote this command:
-`NET START Wazuh`
-to powershell and it starts the agent and now our windows logs are being sent to our Ubuntu Wazuh server deployment.
+I clicked the "Deploy new agent" option in the Wazuh Dashboard, selected the agent machine as Windows, and set the server IP address to `192.168.100.88` (the IP address of the machine where the Wazuh server is deployed).
+
+To install the agent I used the one-liner provided by the dashboard. Example (PowerShell):
+
+```powershell
+Invoke-WebRequest -Uri https://packages.wazuh.com/4.x/windows/wazuh-agent-4.14.7-1.msi -OutFile $env:tmp\wazuh-agent;
+msiexec.exe /i $env:tmp\wazuh-agent /q WAZUH_MANAGER='192.168.100.88' WAZUH_AGENT
+```
+
+This basically downloads the installer and sets up the agent.
+
+After installation finished I ran the following in an elevated PowerShell prompt to start the service:
+
+```powershell
+NET START Wazuh
+```
+
+The agent starts and our Windows logs are now being sent to the Ubuntu Wazuh server deployment.
 
 ![space](Images/VirtualBox_Windows_01_08_2026_12_39_17.png)
 
-But I also want to send sysmon logs to server. For this I set up sysmon like this.
+I also want to send Sysmon logs to the server. To do this I set up Sysmon as follows.
 
 From this link:
+
 > https://learn.microsoft.com/en-us/sysinternals/downloads/sysmon
 
-I downloaded Sysmon in a zip archive. 
+I downloaded Sysmon as a ZIP archive.
 
-I also need a sysmonconfig.xml file which is a configuration file for Sysmon applet. I installed Olaf Hartong's sysmonconfig.xml file which can be found on his github account. This is the standard choice for me. and It is more detailed for detection engineering
+I also needed a `sysmonconfig.xml` file as the configuration for Sysmon. I installed Olaf Hartong's `sysmonconfig.xml` (available on his GitHub) — this is the standard choice used in many labs.
+
 ![space](Images/VirtualBox_Windows_01_08_2026_12_50_39.png)
-This is what I have in hand after also unzipping sysmon.zip and installing sysmonconfig.xml. 
 
-In an elevated Powershell I ran this command for setting up Sysmon. And my sysmon is up and running. 
+After unzipping `sysmon.zip` and placing `sysmonconfig.xml` in the appropriate location, I installed Sysmon using an elevated PowerShell prompt. Sysmon is now running:
+
 ![space](Images/VirtualBox_Windows_01_08_2026_12_54_04.png)
-But currently the sysmon logs aren't sent to server. For this I need to edit C:\Program Files (x86)\ossec-agent\ossec.conf.
 
-I add this config block under Log Analysis part of config file using elevated Notepad.
-```
-<localfile> 
-	<location>Microsoft-Windows-Sysmon/Operational</location> <log_format>eventchannel</log_format> 
+At this point, Sysmon is generating events on the Windows machine, but they are not yet sent to the Wazuh server. To forward Sysmon event channel logs, edit the Wazuh agent configuration file at:
+
+`C:\Program Files (x86)\ossec-agent\ossec.conf`
+
+Add the following block under the Log Analysis section (using an elevated editor such as Notepad run as Administrator):
+
+```xml
+<localfile>
+    <location>Microsoft-Windows-Sysmon/Operational</location>
+    <log_format>eventchannel</log_format>
 </localfile>
 ```
+
 ![space](Images/VirtualBox_Windows_01_08_2026_12_59_48.png)
 
-and then I restarted Wazuh agent service using this command:
-`Restart-Service -Name wazuh`
+Then restart the Wazuh agent service:
 
-Now as we can see I have an active wazuh agent and a wazuh server to investigate and analyze logs.
+```powershell
+Restart-Service -Name wazuh
+```
+
+Now we have an active Wazuh agent sending Windows and Sysmon events to the Wazuh server.
+
 ![space](Images/Pasted image 20260801130446.png)
 
-I also tested if the sysmon works correctly in Event Viewer snap-in. and it works correctly like in this picture 
+I also verified Sysmon in Event Viewer and confirmed that events are being generated locally on the Windows machine:
+
 ![space](Images/VirtualBox_Windows_01_08_2026_13_12_02.png)
-Sysmon events are being generated and can be viewed at windows machine but we need all events to be shown in Wazuh not just alerts. By default most events are just being archived and not turns into alerts. For troubleshooting this we need to enable logall and logall_json flags in ossec.conf file and also enable /etc/filebeat/filebeat.yml archived option. after editing both files I restarted wazuh-manager service using `sudo systemctl restart wazuh-manager` command. 
-I also restart filebeat service and check if it works and talks to server using 
-```
+
+By default many events are archived and do not automatically become alerts in Wazuh — we need to ensure the correct rules and decoders are present to generate alerts as required.
+
+I restarted the Filebeat service on the server and checked connectivity using the following commands:
+
+```bash
 sudo systemctl restart filebeat
 sudo systemctl status filebeat
 sudo filebeat test config
 sudo filebeat test output
 ```
-commands output is like this
-![space](Images/Pasted image 20260801134256.png)After this I still can't see wazuh-archives option in the Discover data selector menu. So I should create a wazuh index pattern in dashboard. 
-I come to Dashboard Management-Index Patterns-Create Index Pattern and write down wazuh-archives-* in Index Pattern name text box and then select Next Step.
+
+The command output is shown in the screenshot below:
+
+![space](Images/Pasted image 20260801134256.png)
+
+After this I still couldn't see the `wazuh-archives` option in the Discover data selector menu, so I created a Wazuh index pattern in the dashboard.
+
+To create the index pattern:
+
+1. Go to Dashboard -> Management -> Index Patterns -> Create Index Pattern.
+2. Enter `wazuh-archives-*` as the Index Pattern name and click Next step.
+
 ![space](Images/Pasted image 20260801140407.png)
-I select timefield as @timestamp and click Create index pattern
+
+3. Select the time field `@timestamp` and click Create index pattern.
+
 ![space](Images/Pasted image 20260801140506.png)
-Now in Discover interface we have additional Index Pattern
+
+Now the Discover interface includes the new index pattern:
+
 ![space](Images/Pasted image 20260801140640.png)
 
-Now we get all events and can filter through them using Opensearch Dashboard Query language(DQL)
+We can now view all events and filter them using the OpenSearch Dashboard Query language (DQL):
 
 ![space](Images/Pasted image 20260801143133.png)
