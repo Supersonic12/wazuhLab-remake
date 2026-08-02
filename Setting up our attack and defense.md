@@ -1,6 +1,6 @@
 For this I created 5 custom rules that makes an alert if there is failed, succesful login attempts using RDP. I put these rules inside /var/ossec/etc/rules/local_rules.xml file.
 Then again restart wazuh-manager. Now everything should work just fine.
-![space]("/Pasted image 20260801200823.png")
+![space](Images/Pasted image 20260801200823.png")
 
 What does these rules basically do is with the order:
 100100: just creates alert when rdp connection is failed.
@@ -10,7 +10,7 @@ What does these rules basically do is with the order:
 100104: creates alert when succesful rdp happens after multiple failed attempts.
 
 I also made addtional 2 custom rules for detection of possible recon/nmap scan attempts which is like this:
-![space]("/Pasted image 20260802132229.png")
+![space](Images/Pasted image 20260802132229.png")
 
 100105 creates low severity level alert when security event 5156 or 5157 is happening. Which can be really draining our storage and flood all alerts. So I just added option no_full_log do decrease space that is needed for it.
 100106 takes 100105 as baseline and is created when 30 100105 alerts are fired in 2 minutes from same ip address which might indicate port scan. 
@@ -33,35 +33,35 @@ First command is to enable RDP and for that changes registry key's value. Second
 
 Now my system is vulnerable we can attack.
 First step of recon:
-![space]("/Pasted image 20260801201125.png")
+![space](Images/Pasted image 20260801201125.png")
 
 As we can see there is multiple open ports but currently what we seek for is 3389 which is default port for RDP. 
 I utilize rule 100106. As we can see when nmap scan is happening this alert shows up on Wazuh:
-![space]("/Pasted image 20260802183112.png")
+![space](Images/Pasted image 20260802183112.png")
 
 Utilizing open 3389th port we enumerate for what usernames exists in target machine using netexec tool.(instead hydra can be utilized")
-![space]("/Pasted image 20260801181745.png")
+![space](Images/Pasted image 20260801181745.png")
 
 this shows up on our SIEM like this:
-![space]("/Pasted image 20260802183900.png")
+![space](Images/Pasted image 20260802183900.png")
 After multiple failed logon attempts to our user testUser its status is locked out. This might be set to endless lockout in enterprise environment but in our case this is default machine. In default settings after 10 unsuccessful login attempts we can see testUser account is locked for 10 minutes.
 This way attacker learnt which users are there in target machine. So active scanning phase is finished. Now attacker should wait for lock out to finished and brute force wordlist on hand to find password of testUser.
-![space]("/Pasted image 20260801182922.png")
+![space](Images/Pasted image 20260801182922.png")
 as we can see attacker found the passcode of wazuh.
 We can also see it at the dashboard I have created for ease of visualization:
-![space]("/Pasted image 20260802184609.png")
+![space](Images/Pasted image 20260802184609.png")
 
 now he should either try lateral movement or take whatever data he can find and exfiltrate it from the account he has in hand. and obviously for testing I run whoami.exe after gaining access to system using rdp. 
 we can see execution of ipconfig and whoami commands in our wazuh discover page just by filtering for rule number 100108 which stands for Powershell or cmd execution of another process.
-![space]("/Pasted image 20260802191526.png")
+![space](Images/Pasted image 20260802191526.png")
 rule number 100107 also is triggered when powershell creates a new file. Both rules are custom made and is like this
-![space]("/Pasted image 20260802191636.png")
+![space](Images/Pasted image 20260802191636.png")
 
 
 So as attack i first tried to download mimikatz.zip archive for credential dumping. But as it would be in real scenarios windows defender deleted that mimikatz.zip file instantly.
-![space]("/Pasted image 20260802200324.png")
+![space](Images/Pasted image 20260802200324.png")
 After seeing mimikatz being deleted I just tried to create a batch file and put a command inside that basically sends exploited.data file to 192.168.100.60 IP adress and my custom rules got both of them and triggered alert in wazuh discovery like this.
-![space]("/Pasted image 20260802200219.png")
+![space](Images/Pasted image 20260802200219.png")
 And now attack is done. Attacker exfiltrated data and send it to his own machine. Now it is time to fix what has caused attack. What permissions werent correct and how to fix against them. I already wrote detection rules. and now it is time to fix machine back to its corrected state.
 
 
@@ -84,24 +84,24 @@ This command will do these in order:
 * disable Remote Desktop group in Windows Firewall
 
 #### Disable testUser account
-![space]("/VirtualBox_Windows_02_08_2026_20_44_15.png")
+![space](Images/VirtualBox_Windows_02_08_2026_20_44_15.png")
 These 2 coimmands disable the local user account. Though to disable active directory account we would use: `Disable-ADAccount` cmdlet.
 
 #### Remove permissions to execute any executables from testUser account
 I utilized gpedit.msc for this. With right clicking Computer Configuration -> Windows Settings -> Security Settings -> Application Control Policies -> AppLocker -> Executable Rules and choosing New Local Rule option a dialog opens. There I chose which user to apply and 
-![space]("/VirtualBox_Windows_02_08_2026_21_24_22.png")
+![space](Images/VirtualBox_Windows_02_08_2026_21_24_22.png")
 According to Path and used \*.exe to disable execution of all .exe extensioned files.
-![space]("/VirtualBox_Windows_02_08_2026_21_30_31.png")
+![space](Images/VirtualBox_Windows_02_08_2026_21_30_31.png")
 I also used same steps to create rules for .bat and .cmd files. Now it looks like this:
-![space]("/VirtualBox_Windows_02_08_2026_21_34_46.png")
+![space](Images/VirtualBox_Windows_02_08_2026_21_34_46.png")
 
 
-![space]("/VirtualBox_Windows_02_08_2026_21_15_13.png")
+![space](Images/VirtualBox_Windows_02_08_2026_21_15_13.png")
 #### Remove permissions to launch powershell and command prompt from testUser account
 After pressing Windows+R I wrote mmc and launched Microsoft Management Console. 
 At File->Add/Remove Snap-In I chose Group Policy Editor and then clicked Add...->Browse->Users->testUser  and clicked OK. Now I can add a GPO for specifically testUser. 
 In User Configuration -> Administrative Templates -> System there is prevent access to command prompt option this should block testUser to access command prompt. But this doesn't prevent user to run powershell. Because of this at the same "System" subcategory there is "Don't run specified Windows applications"
-![space]("/VirtualBox_Windows_02_08_2026_21_13_13 1.png")
+![space](Images/VirtualBox_Windows_02_08_2026_21_13_13 1.png")
 with clicking "Enabled" there and the "Show..." button I wrote down all possible names for Powershell's execution.
-![space]("/VirtualBox_Windows_02_08_2026_22_04_09.png")
+![space](Images/VirtualBox_Windows_02_08_2026_22_04_09.png")
 testUser can't launch Powershell and Command prompt at all
