@@ -62,7 +62,7 @@ Restart-Service -Name wazuh
 
 Now we have an active Wazuh agent sending Windows and Sysmon events to the Wazuh server.
 
-![space](Images/Pasted image 20260801130446.png)
+![space](Images/Pasted%20image%2020260801130446.png)
 
 I also verified Sysmon in Event Viewer and confirmed that events are being generated locally on the Windows machine:
 
@@ -81,7 +81,7 @@ sudo filebeat test output
 
 The command output is shown in the screenshot below:
 
-![space](Images/Pasted image 20260801134256.png)
+![space](Images/Pasted%20image%2020260801134256.png)
 
 After this I still couldn't see the `wazuh-archives` option in the Discover data selector menu, so I created a Wazuh index pattern in the dashboard.
 
@@ -90,16 +90,16 @@ To create the index pattern:
 1. Go to Dashboard -> Management -> Index Patterns -> Create Index Pattern.
 2. Enter `wazuh-archives-*` as the Index Pattern name and click Next step.
 
-![space](Images/Pasted image 20260801140407.png)
+![space](Images/Pasted%20image%2020260801140407.png)
 
 3. Select the time field `@timestamp` and click Create index pattern.
 
-![space](Images/Pasted image 20260801140506.png)
+![space](Images/Pasted%20image%2020260801140506.png)
 
 Now the Discover interface includes the new index pattern:
 
-![space](Images/Pasted image 20260801140640.png)
+![space](Images/Pasted%20image%2020260801140640.png)
 
 We can now view all events and filter them using the OpenSearch Dashboard Query language (DQL):
 
-![space](Images/Pasted image 20260801143133.png)
+![space](Images/Pasted%20image%2020260801143133.png)
