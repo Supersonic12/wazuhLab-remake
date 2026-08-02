@@ -14,7 +14,7 @@ I then created an SSH session from my main device to make the lab feel like it r
 
 ## After creating SSH session
 
-![space](Images/Pasted image 20260801112957.png)
+![space](Images/Pasted%20image%2020260801112957.png)
 
 Next I visited the Wazuh SIEM/EDR website and copied the one-liner installer that deploys Wazuh components (server, indexer, dashboard) on a single machine. I downloaded that script using `curl` and executed it.
 
@@ -28,11 +28,11 @@ The `-a` flag stands for "all-in-one".
 
 After waiting 15–30 minutes the installation of Wazuh components finished and we received the dashboard access password shown here:
 
-![space](Images/Pasted image 20260801115550.png)
+![space](Images/Pasted%20image%2020260801115550.png)
 
 I used the same IP address I used for SSH and port `443` to access the dashboard in a browser:
 
-![space](Images/Pasted image 20260801115809.png)
+![space](Images/Pasted%20image%2020260801115809.png)
 
 After entering the credentials on the dashboard login page I gained access to the default dashboard.
 
