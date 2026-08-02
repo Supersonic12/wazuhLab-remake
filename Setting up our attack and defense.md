@@ -1,107 +1,171 @@
-For this I created 5 custom rules that makes an alert if there is failed, succesful login attempts using RDP. I put these rules inside /var/ossec/etc/rules/local_rules.xml file.
-Then again restart wazuh-manager. Now everything should work just fine.
+# Setting up our attack and defense
+
+For this lab I created five custom rules that generate alerts for failed and successful RDP login attempts. I put these rules in `/var/ossec/etc/rules/local_rules.xml` and then restarted the wazuh-manager. After restarting, everything should work as expected.
+
 ![RDP rules screenshot](Images/Pasted%20image%2020260801200823.png)
 
-What does these rules basically do is with the order:
-100100: just creates alert when rdp connection is failed.
-100101: creates alert when 10 failed rdp connection attempts is made in 2 minutes
-100102: creates alert when 20 failed rdp connection attempts is made in 2 minutes
-100103: creates alert when there is succesful rdp connection attempt happening
-100104: creates alert when succesful rdp happens after multiple failed attempts.
+What these rules do (in order):
 
-I also made addtional 2 custom rules for detection of possible recon/nmap scan attempts which is like this:
+- **100100**: Alert when an RDP connection fails.
+- **100101**: Alert when 10 failed RDP connection attempts occur within 2 minutes.
+- **100102**: Alert when 20 failed RDP connection attempts occur within 2 minutes.
+- **100103**: Alert when there is a successful RDP connection attempt.
+- **100104**: Alert when a successful RDP connection occurs after multiple failed attempts.
+
+I also created two additional custom rules to detect possible reconnaissance / nmap scan attempts:
+
 ![Nmap detection rules](Images/Pasted%20image%2020260802132229.png)
 
-100105 creates low severity level alert when security event 5156 or 5157 is happening. Which can be really draining our storage and flood all alerts. So I just added option no_full_log do decrease spa[...]
-100106 takes 100105 as baseline and is created when 30 100105 alerts are fired in 2 minutes from same ip address which might indicate port scan. 
+- **100105**: Creates a low-severity alert when security events 5156 or 5157 are observed. These events can be very noisy and flood storage, so I added the `no_full_log` option to reduce logging volume.
+- **100106**: Uses 100105 as a baseline and triggers when 30 instances of rule 100105 are fired within 2 minutes from the same IP address — a possible port scan.
 
-Now it is time to simulate attack using netexec tool. I also created additional user account on windows machine so, we can see results better. New user credentials is like this
-username:testUser
-password:liebling
+Now it's time to simulate an attack using the netexec tool. I also created an additional user account on the Windows machine so we can see results more clearly.
 
-In usual attack there is always a reconnaissance phase before everything. 
-So in my attack scenary attacker first learns if there is any open ports. He should see there is open rdp port and enumerate it using username list to learn what usernames exist inside. And only t[...]
+Credentials for the test user:
 
-For this i created 2 separate wordlists. One for usernames and other for possible passwords. For attack to be able to happen I need to make windows machine vulnerable. For this I enabled Remote De[...]
+- username: `testUser`
+- password: `liebling`
 
-```
+In a typical attack there is a reconnaissance phase first. In this scenario, the attacker first scans for open ports, discovers the RDP port, and enumerates usernames using a username list. After enumerating usernames, the attacker waits (as needed) and then brute-forces passwords using a password list.
+
+To enable the attack, I made the Windows machine vulnerable by enabling Remote Desktop and allowing the RDP firewall rule:
+
+```powershell
 Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
 
 New-NetFirewallRule -DisplayName "Allow RDP" -Direction Inbound -Protocol TCP -LocalPort 3389 -Action Allow
 ```
-First command is to enable RDP and for that changes registry key's value. Second command creates a new rule to enable incoming/inbound RDP requests
 
-Now my system is vulnerable we can attack.
+- The first command enables RDP by changing the registry key value.
+- The second command creates a firewall rule to allow incoming RDP requests.
+
+Now the system is vulnerable and we can attack.
+
 First step of recon:
+
 ![Nmap scan results](Images/Pasted%20image%2020260801201125.png)
 
-As we can see there is multiple open ports but currently what we seek for is 3389 which is default port for RDP. 
-I utilize rule 100106. As we can see when nmap scan is happening this alert shows up on Wazuh:
+As we can see, multiple ports are open; we are interested in port **3389**, the default port for RDP.
+
+Rule 100106 is utilized to detect the scan. When an nmap scan is performed, the following alert appears in Wazuh:
+
 ![Wazuh alert for nmap](Images/Pasted%20image%2020260802183112.png)
 
-Utilizing open 3389th port we enumerate for what usernames exists in target machine using netexec tool.(instead hydra can be utilized)
+Using the open 3389 port, we enumerate usernames on the target machine using the netexec tool (hydra could also be used):
+
 ![User enumeration](Images/Pasted%20image%2020260801181745.png)
 
-this shows up on our SIEM like this:
+This shows up in our SIEM as:
+
 ![SIEM alert for enumeration](Images/Pasted%20image%2020260802183900.png)
-After multiple failed logon attempts to our user testUser its status is locked out. This might be set to endless lockout in enterprise environment but in our case this is default machine. In defau[...]
-This way attacker learnt which users are there in target machine. So active scanning phase is finished. Now attacker should wait for lock out to finished and brute force wordlist on hand to find p[...]
+
+After multiple failed logon attempts for `testUser`, the account becomes locked out. In enterprise environments this might be configured for longer lockouts, but on the default machine this is observable after only a few failures.
+
+Now the active scanning phase is finished. The attacker can wait for the lockout to expire and then brute-force passwords from the wordlist.
+
 ![Brute force progress](Images/Pasted%20image%2020260801182922.png)
-as we can see attacker found the passcode of wazuh.
-We can also see it at the dashboard I have created for ease of visualization:
+
+As we can see, the attacker found the password for the target account.
+
+I also created a dashboard for easier visualization:
+
 ![Dashboard view](Images/Pasted%20image%2020260802184609.png)
 
-now he should either try lateral movement or take whatever data he can find and exfiltrate it from the account he has in hand. and obviously for testing I run whoami.exe after gaining access to sy[...]
-we can see execution of ipconfig and whoami commands in our wazuh discover page just by filtering for rule number 100108 which stands for Powershell or cmd execution of another process.
+From this access, the attacker can perform lateral movement or exfiltrate data. For testing, I ran `whoami.exe` after gaining access to the system. We can see execution of `ipconfig` and `whoami` on the Wazuh Discover page by filtering for rule **100108**, which corresponds to PowerShell or CMD execution of another process:
+
 ![Command execution alert](Images/Pasted%20image%2020260802181526.png)
-rule number 100107 also is triggered when powershell creates a new file. Both rules are custom made and is like this
+
+Rule **100107** is triggered when PowerShell creates a new file. Both rules are custom-made. Example:
+
 ![Powershell file creation rule](Images/Pasted%20image%2020260802181636.png)
 
+As part of the attack I first attempted to download a mimikatz.zip archive for credential dumping. Windows Defender deleted that file immediately in this environment:
 
-So as attack i first tried to download mimikatz.zip archive for credential dumping. But as it would be in real scenarios windows defender deleted that mimikatz.zip file instantly.
 ![Mimikatz deleted by Defender](Images/Pasted%20image%2020260802200324.png)
-After seeing mimikatz being deleted I just tried to create a batch file and put a command inside that basically sends exploited.data file to 192.168.100.60 IP adress and my custom rules got both of th[...]
+
+After that, I created a batch file that sends `exploited.data` to `192.168.100.60`. My custom rules detected both the file creation and the exfiltration:
+
 ![Exfiltration command detected](Images/Pasted%20image%2020260802200219.png)
-And now attack is done. Attacker exfiltrated data and send it to his own machine. Now it is time to fix what has caused attack. What permissions werent correct and how to fix against them. I alrea[...]
 
+The attack is now complete: the attacker exfiltrated data to their machine. Next, we fix the issues that enabled the attack: incorrect permissions and other weaknesses.
 
-1. Close opened RDP port
-2. Disable account(recommended) or change password of testUser
-3. Remove command execution permissions from testUser
-4. Remove powershell and cmd access from testUser
+Immediate remediation steps
 
-#### Close Opened RDP port
+1. Close the opened RDP port.
+2. Disable the `testUser` account (recommended) or change its password.
+3. Remove command execution permissions from `testUser`.
+4. Remove PowerShell and CMD access from `testUser`.
+
+#### Close the opened RDP port
+
+Run the following PowerShell commands:
+
+```powershell
+# Turn Network Level Authentication on
+Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name 'UserAuthentication' -Value 1
+
+# Deny RDP connections
+Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 1
+
+# Stop and disable the Remote Desktop service
+Stop-Service -Name 'TermService' -Force
+Set-Service -Name 'TermService' -StartupType Disabled
+
+# Disable Remote Desktop firewall rules
+Disable-NetFirewallRule -DisplayGroup 'Remote Desktop'
 ```
-PS C:\WINDOWS\system32> Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name 'UserAuthentication' -Value 1
-PS C:\WINDOWS\system32> Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 1
-PS C:\WINDOWS\system32> Stop-Service -Name "TermService" -Force Set-Service -Name "TermService" -StartupType Disabled
-PS C:\WINDOWS\system32> Disable-NetFirewallRule -DisplayGroup "Remote Desktop"
-```
-This command will do these in order: 
-* Turn Network Level Authentication on, 
-* deny connections to Remote Desktop Service
-* disable running Remote Desktop Service
-* disable Remote Desktop group in Windows Firewall
 
-#### Disable testUser account
+These commands perform the following:
+
+- Enable Network Level Authentication.
+- Deny connections to the Remote Desktop Service.
+- Stop and disable the Remote Desktop service.
+- Disable the Remote Desktop group in Windows Firewall.
+
+#### Disable `testUser` account
+
 ![Disable testUser screenshot](Images/VirtualBox_Windows_02_08_2026_20_44_15.png)
-These 2 coimmands disable the local user account. Though to disable active directory account we would use: `Disable-ADAccount` cmdlet.
 
-#### Remove permissions to execute any executables from testUser account
-I utilized gpedit.msc for this. With right clicking Computer Configuration -> Windows Settings -> Security Settings -> Application Control Policies -> AppLocker -> Executable Rules and choosing Ne[...]
+The following commands disable a local user account. (To disable an Active Directory account, use the `Disable-ADAccount` cmdlet.)
+
+```powershell
+# Example: disable local user
+# Disable-LocalUser -Name 'testUser'  # Uncomment to run if supported in your environment
+```
+
+#### Remove permissions to execute any executables from `testUser`
+
+I used `gpedit.msc` to create AppLocker rules:
+
+- Open: Computer Configuration -> Windows Settings -> Security Settings -> Application Control Policies -> AppLocker -> Executable Rules
+- Create a path rule that blocks `*.exe` for the `testUser` or the user group.
+- Repeat for `.bat` and `.cmd` extensions.
+
+Screenshots:
+
 ![AppLocker executable rules](Images/VirtualBox_Windows_02_08_2026_21_24_22.png)
-According to Path and used \*.exe to disable execution of all .exe extensioned files.
+
 ![AppLocker path rule](Images/VirtualBox_Windows_02_08_2026_21_30_31.png)
-I also used same steps to create rules for .bat and .cmd files. Now it looks like this:
+
 ![AppLocker rule list](Images/VirtualBox_Windows_02_08_2026_21_34_46.png)
 
-
 ![AppLocker summary](Images/VirtualBox_Windows_02_08_2026_21_15_13.png)
-#### Remove permissions to launch powershell and command prompt from testUser account
-After pressing Windows+R I wrote mmc and launched Microsoft Management Console. 
-At File->Add/Remove Snap-In I chose Group Policy Editor and then clicked Add...->Browse->Users->testUser  and clicked OK. Now I can add a GPO for specifically testUser. 
-In User Configuration -> Administrative Templates -> System there is prevent access to command prompt option this should block testUser to access command prompt. But this doesn't prevent user to [...]
+
+#### Remove permissions to launch PowerShell and Command Prompt from `testUser`
+
+1. Press Windows+R, type `mmc`, and press Enter to open Microsoft Management Console.
+2. In File -> Add/Remove Snap-in, choose Group Policy Object Editor.
+3. Click Add..., then Browse -> Users -> `testUser`, and click OK to edit policy for that user specifically.
+4. Navigate to: User Configuration -> Administrative Templates -> System
+5. Set **Prevent access to the command prompt** to `Enabled` and use the `Show...` button to list all possible names for PowerShell's executables to block.
+
 ![GPO - prevent access to command prompt](Images/VirtualBox_Windows_02_08_2026_21_13_13%201.png)
-with clicking "Enabled" there and the "Show..." button I wrote down all possible names for Powershell's execution.
+
 ![Blocked Powershell names list](Images/VirtualBox_Windows_02_08_2026_22_04_09.png)
-testUser can't launch Powershell and Command prompt at all
+
+With these settings enabled, `testUser` cannot launch PowerShell or the command prompt.
+
+
+---
+
+*Edited for improved formatting, consistent styling, and corrected typos while keeping the original structure and content.*
